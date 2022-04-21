@@ -1,0 +1,287 @@
+---
+title: "A4_Tian"
+author: "Tian Chen"
+date: "2022/04/29"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Set up environment and import the Data
+```{r}
+rm(list= ls())
+require(tidyverse)
+require(hrbrthemes)
+dat_A4_panel <- read.csv("~/Desktop/Duke study/Econ613/A4/Data/dat_A4_panel.csv")
+dat_A4 <- read.csv("~/Desktop/Duke study/Econ613/A4/Data/dat_A4.csv")
+```
+
+## Exercise 1 Preparing the Data
+1.Create additional variable for the age of the agent ”age”, total work experience measured in years
+”work exp”. Hint: ”CV WKSWK JOB DLI.01” denotes the number of weeks a person ever worked
+at JOB 01
+```{r}
+dat_A4_tbl <- dat_A4 %>% as_tibble() 
+#creating age
+dat_A4_tbl <- dat_A4_tbl %>% mutate(age = 2019 - KEY_BDATE_Y_1997)
+#creating total work experience
+work_name <- names(select(dat_A4_tbl,contains("CV_WKSWK_JOB_DLI")))
+dat_A4_tbl <- dat_A4_tbl %>% rowwise(X) %>% mutate(work_exp = sum(c_across(work_name[1]:work_name[11]),na.rm = TRUE)/52) %>% ungroup()
+select(dat_A4_tbl, work_exp,age)
+```
+2.Create additional education variables indicating total years of schooling from all variables related
+to education (eg, ”BIOLOGICAL FATHERS HIGHEST GRADE COMPLETED”) in our dataset.
+```{r}
+educ_names <- names(select(dat_A4_tbl, contains("CV_HGC")))
+dat_A4_tbl$CV_HGC_BIO_DAD_1997[dat_A4_tbl$CV_HGC_BIO_DAD_1997 == 95] <- 0
+dat_A4_tbl$CV_HGC_BIO_MOM_1997[dat_A4_tbl$CV_HGC_BIO_MOM_1997 == 95] <- 0
+dat_A4_tbl$CV_HGC_RES_DAD_1997[dat_A4_tbl$CV_HGC_RES_DAD_1997 == 95] <- 0
+dat_A4_tbl$CV_HGC_RES_MOM_1997[dat_A4_tbl$CV_HGC_RES_MOM_1997 == 95] <- 0
+#change grade to numeric
+dat_A4_tbl$YSCH.3113_2019[dat_A4_tbl$YSCH.3113_2019 == 1] <- 0 #None
+dat_A4_tbl$YSCH.3113_2019[dat_A4_tbl$YSCH.3113_2019 == 2] <- 4 #GED
+dat_A4_tbl$YSCH.3113_2019[dat_A4_tbl$YSCH.3113_2019 == 3] <- 12 #High
+dat_A4_tbl$YSCH.3113_2019[dat_A4_tbl$YSCH.3113_2019 == 4] <- 14 #AA
+dat_A4_tbl$YSCH.3113_2019[dat_A4_tbl$YSCH.3113_2019 == 5] <- 16 #BA
+dat_A4_tbl$YSCH.3113_2019[dat_A4_tbl$YSCH.3113_2019 == 6] <- 18 #MA
+dat_A4_tbl$YSCH.3113_2019[dat_A4_tbl$YSCH.3113_2019 == 7] <- 23#PhD
+dat_A4_tbl$YSCH.3113_2019[dat_A4_tbl$YSCH.3113_2019 == 8] <- 22#JD,MD
+dat_A4_tbl <- dat_A4_tbl %>% rowwise(X) %>% mutate(education = sum(c_across(educ_names[1]:educ_names[4]),na.rm = TRUE)) %>% mutate(education = sum(c(education,YSCH.3113_2019)))
+select(dat_A4_tbl, education)
+```
+3.Provide the following visualizations
+3.1. Plot the income data (where income is positive) by i) age groups, ii) gender groups and iii)
+number of children.
+```{r,error=TRUE}
+dat_A4_tbl <- dat_A4_tbl %>% mutate(gender = ifelse(KEY_SEX_1997 == 1, "Male", ifelse(KEY_SEX_1997 == 2, "Female", "NA")))%>%rename(child_number = CV_BIO_CHILD_HH_U18_2019)
+#age group
+graph_age <- dat_A4_tbl %>% filter(YINC_1700_2019>0) %>% ggplot(aes(x = YINC_1700_2019, fill = as.factor(age))) +     geom_histogram(binwidth = 10000) + labs(x = "income")
+graph_gender <- dat_A4_tbl %>% filter(YINC_1700_2019>0) %>% ggplot(aes(x = YINC_1700_2019, fill = gender)) +     geom_histogram(binwidth = 10000) + labs(x = "income")
+graph_child <- dat_A4_tbl %>% filter(YINC_1700_2019>0) %>% ggplot(aes(x = YINC_1700_2019, fill = as.factor(child_number))) + geom_histogram(binwidth = 10000) + labs(x = "income")
+graph_age
+graph_gender
+graph_child
+```
+3.2 Table the share of ”0” in the income data by i) age groups, ii) gender groups, iii) number of
+children and marital status
+```{r}
+dat_A4_tbl <- dat_A4_tbl %>% mutate(zero_income = ifelse(YINC_1700_2019 == 0, 1, 0))
+
+zero_income_age <- dat_A4_tbl %>% group_by(age) %>% summarize(zero_income_share = sum(zero_income, na.rm = TRUE)/n())
+zero_income_age
+zero_income_gender <- dat_A4_tbl %>% group_by(gender) %>% summarize(zero_income_share = sum(zero_income, na.rm = TRUE)/n())
+zero_income_gender
+zero_income_age <- dat_A4_tbl  %>% group_by(child_number) %>% summarize(zero_income_share = sum(zero_income, na.rm = TRUE)/n())
+zero_income_age
+```
+From those graphs, we can find that people with older age, people who are male and people who with higher number of children are more likely to get higher income. Also, the table shows that younger people, male and people with children are more likely to have zero income. 
+## Exercise 2 Heckman Selection Model
+
+2.1 Specify and estimate an OLS model to explain the income variable (where income is positive).
+```{r}
+dat_regression <- dat_A4_tbl %>% ungroup() %>% select(YINC_1700_2019 ,age, work_exp, education, child_number, gender) %>% rename(income = YINC_1700_2019) %>% mutate(gender_dummy = ifelse(gender == "Male", 1, 0)) %>% select(!gender)
+dat_OLS <- dat_regression %>% drop_na() %>% filter(income > 0)
+X <- as.matrix(select(dat_OLS, !income))
+one <- rep(1, length(dat_OLS$income))
+dim(one) <- c(length(dat_OLS$income), 1)
+X <- cbind(one, X)
+Y <- as.matrix(dat_OLS$income)
+beta <- solve(t(X)%*%X)%*%t(X)%*%Y
+rownames(beta) <- c("Intercept", "age", "work_exp", "education", "child_number", "gender_dummy")
+colnames(beta) <- c("Coefficient")
+beta 
+```
+2.1.1 Interpret the estimation results
+The income is positively correlated with age, working experience and education level, child's number and gender. Whenever a person has higher age, more working experience, more children and higher education level of his or her parents and if the gender of such a person is male, the person will on average get a higher income. Among all of those dependent variables, working experience plays the most significant role.
+
+2.1.2 Explain why there might be a selection bias when estimating an OLS this way
+In the data cleaning process, we removed many those respondents with NAs, making the sample non-random. In other words, the sample we use for the OLS regression includes only those reporting their income, who do not represent the total population. As a result, the OLS estimates will be biased by unobserved omitted variables we do not include into the the OLS estimation. Also, the incomparable control groups here makes the interpretation of estimates impossible.
+
+2.2. Explain why the Heckman model can deal with selection problem
+
+In the Heckman model, we firstly use the probit model to calculate the probability that an individual is observed (inverse mills ratio or IMR) in the first-stage equation. Then we use the IMR as control variable in the second-stage equation. As a result, the IMR can correct the sample selection problem.
+
+2.3 Estimate a Heckman selection model
+```{r}
+#we firstly calculate the dummy for sample observation
+dat_heckman <- dat_regression
+dat_heckman$income[is.na(dat_heckman$income)] <- -1
+dat_heckman <- dat_heckman %>% mutate(y_dummy = ifelse(income>0, 1, 0)) %>% drop_na()
+
+#First stage equation
+#we choose age, working experience, education, the number of children, education, and gender as independent variables. And we assume all of them will affect the probability of being observed
+#we use the probit model to estimate the IMR
+first_stage <- glm(y_dummy ~ age + work_exp + education + child_number + gender_dummy, family = binomial(link = "probit"), 
+    data = dat_heckman)
+summary(first_stage)
+dat_heckman <- dat_heckman %>% mutate(predict_y = predict(first_stage, dat_heckman))
+#calculate the inverse mills ratio
+dat_heckman <- dat_heckman %>% mutate(IMR = dnorm(predict_y)/pnorm(predict_y))
+
+#second stage equation (OLS)
+X <- as.matrix(select(dat_heckman, !c(income,predict_y, y_dummy)))
+one <- rep(1, length(dat_heckman$income))
+dim(one) <- c(length(dat_heckman$income), 1)
+X <- cbind(one, X)
+Y <- as.matrix(dat_heckman$income)
+beta <- solve(t(X)%*%X)%*%t(X)%*%Y
+#rownames(beta) <- c("Intercept", "age", "work_exp", "education", "child_number", "gender_dummy")
+#colnames(beta) <- c("Coefficient")
+beta 
+
+summary(lm(income~age+work_exp+education+child_number+gender_dummy+IMR, data = dat_heckman))
+```
+Interpret:
+As we can see, the coefficient of IMR is negative and significant, indicating that there exists the sample selection bias. After heckman selection, the working experience is negatively associated with the income. For other variables, though the coefficients of them are still positive, but their impacts become smaller.
+
+## Exercise 3 Censoring
+
+3.1 Plot a histogram to check whether the distribution of the income variable. What might be the
+censored value here?
+
+```{r}
+hist(dat_regression$income,xlim = range(100000))
+```
+As we can see, the censopred value here is 100,000,
+
+3.2 Propose a model to deal with the censoring problem
+I would like to use the heckman model as well. As Heckman argues, the censored data can be considered as a case of selcetion problem.
+
+3.3 Estimate the appropriate model with the censored data
+```{r}
+dat_heckman2 <- dat_heckman %>% filter(income > 0)
+#we create censored dummy (if income)
+dat_heckman2 <- dat_heckman2 %>% mutate(y_dummy2 = ifelse(income == 100000, 0, 1))
+#calculate the heckman IMR for censored data
+first_stage <- glm(y_dummy2 ~ age + work_exp + education + child_number + gender_dummy, family = binomial(link = "probit"), 
+    data = dat_heckman2)
+summary(first_stage)
+dat_heckman2 <- dat_heckman2 %>% mutate(predict_y2 = predict(first_stage, dat_heckman2))
+#calculate the inverse mills ratio
+dat_heckman2 <- dat_heckman2 %>% mutate(IMR2 = dnorm(predict_y2)/pnorm(predict_y2))
+
+#second stage equation (OLS)
+X <- as.matrix(select(dat_heckman2, !c(income,predict_y, y_dummy, y_dummy2, predict_y2, IMR)))
+one <- rep(1, length(dat_heckman2$income))
+dim(one) <- c(length(dat_heckman2$income), 1)
+X <- cbind(one, X)
+Y <- as.matrix(dat_heckman2$income)
+beta <- solve(t(X)%*%X)%*%t(X)%*%Y
+#rownames(beta) <- c("Intercept", "age", "work_exp", "education", "child_number", "gender_dummy")
+#colnames(beta) <- c("Coefficient")
+beta 
+```
+3.4 compare the results
+```{r}
+#ols
+summary(lm(income ~ age + work_exp + education + child_number + 
+    gender_dummy, data = dat_heckman2))
+summary(lm(income ~ age + work_exp + education + child_number + 
+    gender_dummy + IMR2, data = dat_heckman2))
+```
+As we can see, after the Heckman correction, the coefficient of age becomes negative. All other variables' coefficient are still positive but their impacts on income become smaller. Also, the significance of IMR indicats the censored data cause selection bias in the OLS regression.
+
+## Exercise 4 Panel Data
+
+4.1 Explain the potential ability bias.
+
+Ability bias indicates that the income returns to education may be caused by people's ability. Those people with the higher ability (or IQ) are more likely to have both higher educational levels and income because of their innate ability. In other words, even with less education, they can also earn more money than other people. In the OLS regression, without controlling for the ability, the estimate will be overestimated because the ability is positively correlated with both education and income.
+
+4.2 Exploit the panel dimension of the data to propose a model to correct for the ability bias. Estimate the model using the following strategy.
+
+Import data
+```{r}
+#education, marital status, experience, wages
+#education: CV_HGC
+#experience: CV_WKSWK_JOB_DLI
+#wages: YINC_1700
+#marital status: CV_MARSTAT
+#id:X
+dat_tbl <- dat_A4_panel %>% as_tibble()
+#education
+education_long <-dat_tbl %>% select(X,contains("CV_HIGHEST_DEGREE")) %>% pivot_longer(!X, names_to = "year", values_to = "education") 
+year_name <- unique(education_long$year)
+for (name in year_name) {
+    x <- name
+    year <- str_sub(x, -4, -1)
+    education_long$year[education_long$year == x] <- year 
+}
+education_long
+#wages
+wage_long<- dat_tbl %>% select(X, contains("YINC.1700")) %>% pivot_longer(!X, names_to = "year", values_to = "wage")
+year_name <- unique(wage_long$year)
+for (name in year_name) {
+    x <- name
+    year <- str_sub(x, -4, -1)
+    wage_long$year[wage_long$year == x] <- year 
+}
+wage_long
+
+#Marital status
+marital_long<- dat_tbl %>% select(X, contains("CV_MARSTAT")) %>% pivot_longer(!X, names_to = "year", values_to = "marital_status")
+year_name <- unique(marital_long$year)
+for (name in year_name) {
+    x <- name
+    year <- str_sub(x, -4, -1)
+    marital_long$year[marital_long$year == x] <- year 
+}
+marital_long
+
+#Experience
+experience_long <- dat_tbl %>% select(X, contains("CV_WKSWK_JOB_DLI"))
+experience_long <- experience_long %>% rowwise(X) %>% mutate(work_exp_1997 = sum(c_across(names(select(experience_long, contains("1997")))),na.rm =TRUE)) %>% mutate(work_exp_1998 = sum(c_across(names(select(experience_long, contains("1998")))),na.rm =TRUE)) %>% mutate(work_exp_1999 = sum(c_across(names(select(experience_long, contains("1999")))),na.rm =TRUE)) %>% mutate(work_exp_2000 = sum(c_across(names(select(experience_long, contains("2000")))),na.rm =TRUE)) %>% mutate(work_exp_2001 = sum(c_across(names(select(experience_long, contains("2001")))),na.rm =TRUE)) %>% mutate(work_exp_2002 = sum(c_across(names(select(experience_long, contains("2002")))),na.rm =TRUE)) %>% mutate(work_exp_2003 = sum(c_across(names(select(experience_long, contains("2003")))),na.rm =TRUE)) %>% mutate(work_exp_2004 = sum(c_across(names(select(experience_long, contains("2004")))),na.rm =TRUE)) %>% mutate(work_exp_2005 = sum(c_across(names(select(experience_long, contains("2005")))),na.rm =TRUE)) %>% mutate(work_exp_2006 = sum(c_across(names(select(experience_long, contains("2006")))),na.rm =TRUE)) %>% mutate(work_exp_2007 = sum(c_across(names(select(experience_long, contains("2007")))),na.rm =TRUE)) %>% mutate(work_exp_2008 = sum(c_across(names(select(experience_long, contains("2008")))),na.rm =TRUE)) %>% mutate(work_exp_2009 = sum(c_across(names(select(experience_long, contains("2009")))),na.rm =TRUE)) %>% mutate(work_exp_2010 = sum(c_across(names(select(experience_long, contains("2010")))),na.rm =TRUE)) %>% mutate(work_exp_2011 = sum(c_across(names(select(experience_long, contains("2011")))),na.rm =TRUE)) %>% mutate(work_exp_2012 = sum(c_across(names(select(experience_long, contains("2012")))),na.rm =TRUE)) %>% mutate(work_exp_2013 = sum(c_across(names(select(experience_long, contains("2013")))),na.rm =TRUE)) %>% mutate(work_exp_2014 = sum(c_across(names(select(experience_long, contains("2014")))),na.rm =TRUE)) %>% mutate(work_exp_2015 = sum(c_across(names(select(experience_long, contains("2015")))),na.rm =TRUE)) %>% mutate(work_exp_2016 = sum(c_across(names(select(experience_long, contains("2016")))),na.rm =TRUE)) %>% mutate(work_exp_2017 = sum(c_across(names(select(experience_long, contains("2017")))),na.rm =TRUE)) %>% mutate(work_exp_2018 = sum(c_across(names(select(experience_long, contains("2018")))),na.rm =TRUE)) %>% mutate(work_exp_2019 = sum(c_across(names(select(experience_long, contains("2019")))),na.rm =TRUE))
+experience_long <- experience_long %>% select(contains("work_exp")) %>% ungroup() %>% pivot_longer(!X,names_to = "year", values_to = "experience")
+year_name <- unique(experience_long$year)
+for (name in year_name) {
+    x <- name
+    year <- str_sub(x, -4, -1)
+    experience_long$year[experience_long$year == x] <- year 
+}
+experience_long
+
+dat_panel <- left_join(education_long, wage_long, by = c("X", "year")) %>% left_join(marital_long, by = c("X", "year")) %>% left_join(experience_long, by = c("X", "year")) %>% unique()
+
+#replace the sperated, divorced, widowed to 0
+dat_panel$marital_status[dat_panel$marital_status == 2] <- 0
+dat_panel$marital_status[dat_panel$marital_status == 3] <- 0
+dat_panel$marital_status[dat_panel$marital_status == 4] <- 0
+
+dat_panel
+```
+
+4.2 Exploit the panel dimension of the data to propose a model to correct for the ability bias. Estimate the model using the following strategy
+
+I propose to use the fixed effect model. Because ability is time-invariant omitted variable, controlling for the individual fixed effect can solve the omitted variable bias.
+
+```{r}
+#firstly, we create the year dummy and individual dummy
+#there are some duplicated ids in the data, we remove all of them
+require(plm)
+unique_id <- dat_panel %>% select(X,year)
+dat_panel_unique <- dat_panel %>% filter(!duplicated(unique_id))
+PanelData <- pdata.frame(dat_panel_unique, index = c("X", "year"))
+model<-wage ~ education + marital_status + experience
+#within estimator
+within_fe<- plm(model,data = PanelData, model='within', effect='twoways')
+
+#between estimator
+between_fe <- plm(model, data = PanelData, model = "between")
+
+#difference estimator
+diff_fe <- plm(model, data = PanelData, model = "fd")
+
+require(stargazer)
+stargazer(within_fe, between_fe, diff_fe,type='text',
+          column.labels = c("Within","Between","Difference"))
+```
+4.3 Interpret the results from each model and explain why different models yield different parameter
+estimates
+
+Each model shows that education, marital status and experience are positively correlated with wage, indicating that on average people with higher education, partners and more working experience can get higher income. Why the results from difference estimators is so distinct from others? That's because in the difference estimators, we cannot include the year fixed effects, leading to the estimation bias caused by the time-variant omitted variables.
+
+
